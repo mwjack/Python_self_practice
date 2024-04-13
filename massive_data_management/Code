@@ -1,1 +1,175 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan 19 19:14:24 2024
 
+@author: jack
+"""
+
+import pandas as pd
+import os
+import numpy as np
+import openpyxl
+
+
+#%%
+path='D:\\program\\佐原笔试\\' 
+os.chdir(path)
+os.getcwd()
+#%% 
+daily_data= pd.read_csv("日频数据.csv")
+
+
+#%%
+# Define a function to format the stock codes
+def format_ts_code(ts_code):
+    # the line below is to pad the code with zeros if necessary
+    formatted_code = str(ts_code).zfill(6)
+    # this if function is to avoid double apply of this function, for example end up with .SZ.SZ 
+    if formatted_code.endswith('.SH') or formatted_code.endswith('.SZ'):
+        return formatted_code
+   
+    # after checking the data my logic here to difference the SZ and SH is by the starting number 6 
+    if formatted_code.startswith('6'):
+        formatted_code += '.SH'
+    else:
+        formatted_code += '.SZ'
+
+    return formatted_code
+#%% 
+# apply the function we just define 
+daily_data['ts_code'] = daily_data['ts_code'].apply(format_ts_code)
+
+
+#%%
+
+def MTM(data,coloum1="ts_code",coloum2="close",N=10):
+    data['MTM'] = data.groupby(coloum1,group_keys=False)[coloum2].apply(lambda x: x - x.shift(N))
+    return data 
+
+#%%
+# note the MTM define with N=10 as default, and the two coloum variable is defined in case with different data source
+daily_data=MTM(daily_data,'ts_code','close')
+
+
+
+#%%
+def MAMTM(data,column1='ts_code', M=20):
+    # avoid double apply of this function
+    if "MAMTM" in data.columns:
+        return data
+    else:
+        data['MAMTM'] = data.groupby('ts_code')['MTM'].rolling(window=M).mean().reset_index(level=0, drop=True)
+        return data 
+
+
+#%%
+daily_data=MAMTM(daily_data)
+
+# rearrange data and output it in excel 
+"if the export the dataframe to excel directly, the data size is too big to export to excel, so i rearrange the data and exported into two sheet "
+
+data_out1=daily_data.pivot(index='trade_date',columns='ts_code',values='MTM')
+data_out2=daily_data.pivot(index='trade_date',columns='ts_code',values='MAMTM')
+with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    data_out1.to_excel(writer, sheet_name="题目1_MTM")
+    data_out2.to_excel(writer, sheet_name="题目1_MAMTM")
+    writer.close()
+
+
+
+
+#%% check 
+"if the calculation is correct, the 30th data should be first data of MAMTM"
+check_data = daily_data[daily_data['ts_code'] == '000605.SZ']
+print(check_data.iloc[:31])
+#%%
+'question 2'
+zt_data=pd.read_csv("涨停股票统计.csv")
+# simple calculation based on pct_chg
+daily_data['是否涨停']=daily_data['pct_chg'].apply(lambda x: 1 if x>=10 else 0)
+daily_data['15日涨停次数'] = daily_data.groupby('ts_code')['是否涨停'].rolling(window=15, min_periods=15).sum().reset_index(level=0, drop=True)
+
+"if the export the dataframe to excel directly, the data size is too big to export to excel, so i rearrange the data and exported into two sheet "
+data_out1=daily_data.pivot(index='trade_date',columns='ts_code',values='是否涨停')
+data_out2=daily_data.pivot(index='trade_date',columns='ts_code',values='15日涨停次数')
+
+with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    data_out1.to_excel(writer, sheet_name="题目2_是否涨停")
+    data_out2.to_excel(writer, sheet_name="题目2_15日涨停次数")
+    writer.close()
+
+
+# the code for dirctly export is here, but not working due to data size
+'''
+with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a',engine='openpyxl',if_sheet_exit='replace')as writer:
+    daily_data[['是否涨停','15日涨停次数']].to_excel(writer, sheet_name="题目2")
+'''    
+#%%
+"question 3"
+#3-day return
+daily_data['3d_return'] = daily_data.groupby('ts_code')['close'].pct_change(periods=3)
+
+# 10-day Return
+daily_data['10d_return'] = daily_data.groupby('ts_code')['close'].pct_change(periods=10)
+
+# 3-day Volatility (Standard Deviation of Returns)
+
+daily_data['3d_volatility'] = daily_data.groupby('ts_code')['close'].pct_change(periods=1).rolling(window=3).std()
+daily_data['3d_volatility'] =  daily_data['3d_volatility'].replace(0,np.nan)
+"note: we have to put 0 value here to nan otherwise the sharpe ratio will be infinit when volatility is 0"        
+# Daily Risk-Free Rate (Assuming an annual risk-free rate of 2%)
+daily_risk_free_rate = 0.02 / 252  # Assuming 252 trading days in a year
+
+# 3-day Sharpe Ratio
+daily_data['3d_sharpe_ratio'] =( daily_data['3d_return']-0.02 / 252*3)/daily_data['3d_volatility']
+#%%
+from scipy import stats
+
+index_data = pd.read_csv('指数.csv').sort_values(by='trade_date', ascending=True)
+
+# rearrange the data for the calculation of beta
+index_data_pivoted=index_data.pivot(index = 'trade_date',columns='ts_code',values='pct_chg')
+
+#calculation for the beta in each stock
+daily_data_pivoted=daily_data.pivot(index = 'trade_date',columns='ts_code',values='pct_chg')
+beta=pd.DataFrame(index=['beta'])
+for column in daily_data_pivoted.columns:
+    X=daily_data_pivoted[column].fillna(0)
+    a,b,c,d,e =stats.linregress(index_data_pivoted['000001.SH'],X)
+    slope=a
+    beta[column]=slope    
+
+
+# store beta result in a new column for treynor theory calculation 
+daily_data['beta']=daily_data['ts_code'].apply(lambda x: beta[x].iloc[0] if x in beta.columns else None)
+
+
+
+
+    
+
+# 3-day treynor
+daily_data['3d_Treynor']=(daily_data.groupby('ts_code',group_keys=False)['close'].pct_change(periods=3).rolling(window=3).mean() - daily_risk_free_rate*3) / daily_data['beta']
+
+    
+
+#calculation of furture three days return 
+daily_data['fut_3ret']=daily_data.groupby('ts_code',group_keys=False)['3d_return'].shift(-1)
+
+
+#%% 
+#ic calculation'
+daily_data=daily_data.dropna()
+ic_s=pd.DataFrame(index=['ic'])
+for factor in ['3d_return','10d_return','3d_volatility','3d_sharpe_ratio','3d_Treynor']:
+    ic_s[factor]=(daily_data['fut_3ret'].corr(daily_data[factor],method='spearman'))
+    
+# export data to excel
+with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    ic_s.to_excel(writer, sheet_name="题目3")
+    writer.close()
+
+
+
+    
+    
