@@ -12,11 +12,11 @@ import openpyxl
 
 
 #%%
-path='D:\\program\\佐原笔试\\' 
+path='' "Choose your own path"
 os.chdir(path)
 os.getcwd()
 #%% 
-daily_data= pd.read_csv("日频数据.csv")
+daily_data= pd.read_csv("Daily_data.csv")
 
 
 #%%
@@ -67,12 +67,12 @@ daily_data=MAMTM(daily_data)
 
 # rearrange data and output it in excel 
 "if the export the dataframe to excel directly, the data size is too big to export to excel, so i rearrange the data and exported into two sheet "
-
+file_name='D:\\program\\self\\self.xlsx' "choose your own pass"
 data_out1=daily_data.pivot(index='trade_date',columns='ts_code',values='MTM')
 data_out2=daily_data.pivot(index='trade_date',columns='ts_code',values='MAMTM')
-with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
-    data_out1.to_excel(writer, sheet_name="题目1_MTM")
-    data_out2.to_excel(writer, sheet_name="题目1_MAMTM")
+with pd.ExcelWriter(file_name, mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    data_out1.to_excel(writer, sheet_name="MTM")
+    data_out2.to_excel(writer, sheet_name="MAMTM")
     writer.close()
 
 
@@ -93,16 +93,18 @@ daily_data['15日涨停次数'] = daily_data.groupby('ts_code')['是否涨停'].
 data_out1=daily_data.pivot(index='trade_date',columns='ts_code',values='是否涨停')
 data_out2=daily_data.pivot(index='trade_date',columns='ts_code',values='15日涨停次数')
 
-with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
-    data_out1.to_excel(writer, sheet_name="题目2_是否涨停")
-    data_out2.to_excel(writer, sheet_name="题目2_15日涨停次数")
+file_name='D:\\program\\self\\self.xlsx' "choose your own pass"
+
+with pd.ExcelWriter(file_name, mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    data_out1.to_excel(writer, sheet_name="2_是否涨停")
+    data_out2.to_excel(writer, sheet_name="2_15日涨停次数")
     writer.close()
 
 
 # the code for dirctly export is here, but not working due to data size
 '''
-with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a',engine='openpyxl',if_sheet_exit='replace')as writer:
-    daily_data[['是否涨停','15日涨停次数']].to_excel(writer, sheet_name="题目2")
+with pd.ExcelWriter(file_name, mode='a',engine='openpyxl',if_sheet_exit='replace')as writer:
+    daily_data[['是否涨停','15日涨停次数']].to_excel(writer, sheet_name="2_")
 '''    
 #%%
 "question 3"
@@ -165,8 +167,8 @@ for factor in ['3d_return','10d_return','3d_volatility','3d_sharpe_ratio','3d_Tr
     ic_s[factor]=(daily_data['fut_3ret'].corr(daily_data[factor],method='spearman'))
     
 # export data to excel
-with pd.ExcelWriter('D:\\program\\佐原笔试\\佐原笔试.xlsx', mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
-    ic_s.to_excel(writer, sheet_name="题目3")
+with pd.ExcelWriter(file_name, mode='a', engine='openpyxl',if_sheet_exit='replace')as writer:
+    ic_s.to_excel(writer, sheet_name="3_")
     writer.close()
 
 
